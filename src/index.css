@@ -1,0 +1,9 @@
+/* Tailwind is loaded via CDN for immediate reliability */
+body {
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  color-scheme: light;
+}
