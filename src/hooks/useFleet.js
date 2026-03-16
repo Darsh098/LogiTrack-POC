@@ -32,6 +32,7 @@ export const useFleet = () => {
           route_waypoints,
           start_location,
           end_location,
+          trip_stops,
           created_at,
           trucks (
             id,
@@ -118,27 +119,29 @@ export const useCreateTruckTrip = () => {
 
       if (truckError) throw truckError;
 
-      // 2. Build the PostGIS POINT strings
+      // 2. Use prebuilt geometry from AddTruckForm (OSRM road route)
+      //    If not provided (legacy path), build straight-line fallback
       const startPoint = `POINT(${tripData.startLng} ${tripData.startLat})`;
       const endPoint = `POINT(${tripData.endLng} ${tripData.endLat})`;
 
-      // 3. Build route_waypoints as 'lat,lng' strings
-      // const waypoints = tripData.waypoints.map(([lat, lng]) => `${lat},${lng}`);
-      const waypoints = [
+      const waypoints = tripData.routeWaypointStrings ?? [
         `${tripData.startLat},${tripData.startLng}`,
-        ...tripData.waypoints.map(([lat, lng]) => `${lat},${lng}`),
+        ...(tripData.waypoints ?? []).map(([lat, lng]) => `${lat},${lng}`),
         `${tripData.endLat},${tripData.endLng}`,
       ];
 
-      // 4. Build route_polyline WKT from all points (start + waypoints + end)
-      const allPoints = [
-        [tripData.startLng, tripData.startLat],
-        ...tripData.waypoints.map(([lat, lng]) => [lng, lat]),
-        [tripData.endLng, tripData.endLat],
-      ];
-      const linestring = `LINESTRING(${allPoints.map((p) => p.join(" ")).join(", ")})`;
+      const linestring =
+        tripData.linestringWKT ??
+        (() => {
+          const pts = [
+            [tripData.startLng, tripData.startLat],
+            ...(tripData.waypoints ?? []).map(([lat, lng]) => [lng, lat]),
+            [tripData.endLng, tripData.endLat],
+          ];
+          return `LINESTRING(${pts.map((p) => p.join(" ")).join(", ")})`;
+        })();
 
-      // 5. Insert the trip
+      // 3. Insert the trip with stops
       const { data: trip, error: tripError } = await supabase
         .from("trips")
         .insert([
@@ -149,6 +152,7 @@ export const useCreateTruckTrip = () => {
             end_location: endPoint,
             route_polyline: linestring,
             route_waypoints: waypoints,
+            trip_stops: tripData.tripStops ?? [],
             total_weight_tons: tripData.totalWeightTons,
             total_volume_m3: tripData.totalVolumeM3,
             remaining_weight_tons: tripData.totalWeightTons,

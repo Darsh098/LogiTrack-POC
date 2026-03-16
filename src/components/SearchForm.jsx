@@ -14,26 +14,7 @@ import useTruckSearch from "../hooks/useTruckSearch";
 import useTruckRoutes from "../hooks/useTruckRoutes";
 import TruckListing from "./TruckListing";
 import MapComponent from "./MapComponent";
-
-// Pre-defined locations in Balkans for easy selection
-const PRESET_LOCATIONS = {
-  "Pristina, Kosovo": { lat: 42.6526, lng: 21.1789 },
-  "Belgrade, Serbia": { lat: 44.8176, lng: 20.4581 },
-  "Niš, Serbia": { lat: 44.015, lng: 21.0059 },
-  "Skopje, North Macedonia": { lat: 41.9973, lng: 21.428 },
-  "Tetovë, North Macedonia": { lat: 41.9987, lng: 21.1525 },
-  "Tirana, Albania": { lat: 41.3275, lng: 19.8187 },
-  "Durrës, Albania": { lat: 41.315, lng: 19.4542 },
-  "Vlorë, Albania": { lat: 40.4619, lng: 19.4703 },
-  "Podgorica, Montenegro": { lat: 42.4304, lng: 19.2644 },
-  "Bar, Montenegro": { lat: 42.1081, lng: 19.0944 },
-  "Prizren, Kosovo": { lat: 42.2116, lng: 20.7639 },
-  "Mitrovica, Kosovo": { lat: 42.8945, lng: 20.8667 },
-  "Sofia, Bulgaria": { lat: 42.6977, lng: 23.3219 },
-  "Zagreb, Croatia": { lat: 45.815, lng: 16.0122 },
-  "Split, Croatia": { lat: 43.5081, lng: 16.4401 },
-  "Sarajevo, Bosnia": { lat: 43.9159, lng: 18.4131 },
-};
+import PlaceSearch from "./PlaceSearch";
 
 const SearchForm = () => {
   const [pickupLocation, setPickupLocation] = useState(null);
@@ -42,7 +23,6 @@ const SearchForm = () => {
   const [packageVolume, setPackageVolume] = useState(2.5);
   const [distanceThreshold, setDistanceThreshold] = useState(5);
   const [hasSearched, setHasSearched] = useState(false);
-  const [usePresets, setUsePresets] = useState(true);
 
   // Map interaction state
   const [selectionMode, setSelectionMode] = useState(null); // 'pickup', 'delivery', or null
@@ -66,37 +46,20 @@ const SearchForm = () => {
   // Fetch routes for all returned trucks
   const { data: truckRoutesMap } = useTruckRoutes(tripIds);
 
-  const handlePickupSelect = (location) => {
-    const coords = PRESET_LOCATIONS[location];
-    if (coords) {
-      setPickupLocation(coords);
-      setSelectionMode(null);
-    }
-  };
+  const handleMapLocationSelect = async (coords) => {
+    // Reverse geocode clicked location
+    const { reverseGeocode } = await import("../utils/nominatim");
+    const name = await reverseGeocode(coords.lat, coords.lng);
+    const place = {
+      name: name || `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+      lat: coords.lat,
+      lng: coords.lng,
+    };
 
-  const handleDeliverySelect = (location) => {
-    const coords = PRESET_LOCATIONS[location];
-    if (coords) {
-      setDeliveryLocation(coords);
-      setSelectionMode(null);
-    }
-  };
-
-  const handleManualPickup = (lat, lng) => {
-    setPickupLocation({ lat: parseFloat(lat), lng: parseFloat(lng) });
-  };
-
-  const handleManualDelivery = (lat, lng) => {
-    setDeliveryLocation({ lat: parseFloat(lat), lng: parseFloat(lng) });
-  };
-
-  const handleMapLocationSelect = (coords) => {
     if (selectionMode === "pickup") {
-      setPickupLocation(coords);
-      setUsePresets(false);
+      setPickupLocation(place);
     } else if (selectionMode === "delivery") {
-      setDeliveryLocation(coords);
-      setUsePresets(false);
+      setDeliveryLocation(place);
     }
     setSelectionMode(null);
   };
@@ -172,103 +135,36 @@ const SearchForm = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {usePresets ? (
-                    <div className="space-y-3">
-                      <select
-                        onChange={(e) => handlePickupSelect(e.target.value)}
-                        className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium text-slate-700"
-                        defaultValue=""
-                      >
-                        <option value="">Select Pickup City</option>
-                        {Object.keys(PRESET_LOCATIONS).map((loc) => (
-                          <option key={loc} value={loc}>
-                            {loc}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-4">
-                        <button
-                          className="text-indigo-600 text-sm font-semibold hover:underline flex items-center gap-1"
-                          onClick={() => setUsePresets(false)}
-                        >
-                          Enter Manual Coordinates
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          className={`text-sm font-semibold flex items-center gap-1 ${selectionMode === "pickup" ? "text-emerald-600" : "text-indigo-600 hover:underline"}`}
-                          onClick={() =>
-                            setSelectionMode(
-                              selectionMode === "pickup" ? null : "pickup",
-                            )
-                          }
-                        >
-                          <MapIcon size={14} />
-                          {selectionMode === "pickup"
-                            ? "Selecting on Map..."
-                            : "Select on Map"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <input
-                          type="number"
-                          placeholder="Latitude"
-                          step="0.0001"
-                          onChange={(e) =>
-                            handleManualPickup(
-                              e.target.value,
-                              pickupLocation?.lng || 0,
-                            )
-                          }
-                          defaultValue={pickupLocation?.lat || ""}
-                          className="h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Longitude"
-                          step="0.0001"
-                          onChange={(e) =>
-                            handleManualPickup(
-                              pickupLocation?.lat || 0,
-                              e.target.value,
-                            )
-                          }
-                          defaultValue={pickupLocation?.lng || ""}
-                          className="h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium"
-                        />
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <button
-                          className="text-indigo-600 text-sm font-semibold hover:underline flex items-center gap-1"
-                          onClick={() => setUsePresets(true)}
-                        >
-                          Use Preset Locations
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          className={`text-sm font-semibold flex items-center gap-1 ${selectionMode === "pickup" ? "text-emerald-600" : "text-indigo-600 hover:underline"}`}
-                          onClick={() =>
-                            setSelectionMode(
-                              selectionMode === "pickup" ? null : "pickup",
-                            )
-                          }
-                        >
-                          <MapIcon size={14} />
-                          {selectionMode === "pickup"
-                            ? "Selecting on Map..."
-                            : "Select on Map"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <PlaceSearch
+                    value={pickupLocation}
+                    onChange={(p) => setPickupLocation(p)}
+                    placeholder="Search pickup city..."
+                    accentColor="emerald"
+                    showCurrentLocation={true}
+                  />
+
+                  <div className="flex items-center gap-4">
+                    <button
+                      className={`text-sm font-semibold flex items-center gap-1 ${selectionMode === "pickup" ? "text-emerald-600" : "text-indigo-600 hover:underline"}`}
+                      onClick={() =>
+                        setSelectionMode(
+                          selectionMode === "pickup" ? null : "pickup",
+                        )
+                      }
+                    >
+                      <MapIcon size={14} />
+                      {selectionMode === "pickup"
+                        ? "Click on map to pick"
+                        : "Select on Map"}
+                    </button>
+                  </div>
+
                   {pickupLocation && (
                     <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg text-sm font-medium border border-emerald-100">
                       <CheckCircle2 size={16} />
-                      Coordinates Localized: {pickupLocation.lat.toFixed(
-                        4,
-                      )}, {pickupLocation.lng.toFixed(4)}
+                      <span className="truncate" title={pickupLocation.name}>
+                        Selected: {pickupLocation.name.split(",")[0]}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -282,103 +178,35 @@ const SearchForm = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {usePresets ? (
-                    <div className="space-y-3">
-                      <select
-                        onChange={(e) => handleDeliverySelect(e.target.value)}
-                        className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium text-slate-700"
-                        defaultValue=""
-                      >
-                        <option value="">Select Delivery City</option>
-                        {Object.keys(PRESET_LOCATIONS).map((loc) => (
-                          <option key={loc} value={loc}>
-                            {loc}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex items-center gap-4">
-                        <button
-                          className="text-indigo-600 text-sm font-semibold hover:underline flex items-center gap-1"
-                          onClick={() => setUsePresets(false)}
-                        >
-                          Enter Manual Coordinates
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          className={`text-sm font-semibold flex items-center gap-1 ${selectionMode === "delivery" ? "text-emerald-600" : "text-indigo-600 hover:underline"}`}
-                          onClick={() =>
-                            setSelectionMode(
-                              selectionMode === "delivery" ? null : "delivery",
-                            )
-                          }
-                        >
-                          <MapIcon size={14} />
-                          {selectionMode === "delivery"
-                            ? "Selecting on Map..."
-                            : "Select on Map"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <input
-                          type="number"
-                          placeholder="Latitude"
-                          step="0.0001"
-                          onChange={(e) =>
-                            handleManualDelivery(
-                              e.target.value,
-                              deliveryLocation?.lng || 0,
-                            )
-                          }
-                          defaultValue={deliveryLocation?.lat || ""}
-                          className="h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Longitude"
-                          step="0.0001"
-                          onChange={(e) =>
-                            handleManualDelivery(
-                              deliveryLocation?.lat || 0,
-                              e.target.value,
-                            )
-                          }
-                          defaultValue={deliveryLocation?.lng || ""}
-                          className="h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none font-medium"
-                        />
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <button
-                          className="text-indigo-600 text-sm font-semibold hover:underline flex items-center gap-1"
-                          onClick={() => setUsePresets(true)}
-                        >
-                          Use Preset Locations
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          className={`text-sm font-semibold flex items-center gap-1 ${selectionMode === "delivery" ? "text-emerald-600" : "text-indigo-600 hover:underline"}`}
-                          onClick={() =>
-                            setSelectionMode(
-                              selectionMode === "delivery" ? null : "delivery",
-                            )
-                          }
-                        >
-                          <MapIcon size={14} />
-                          {selectionMode === "delivery"
-                            ? "Selecting on Map..."
-                            : "Select on Map"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <PlaceSearch
+                    value={deliveryLocation}
+                    onChange={(p) => setDeliveryLocation(p)}
+                    placeholder="Search delivery city..."
+                    accentColor="red"
+                  />
+
+                  <div className="flex items-center gap-4">
+                    <button
+                      className={`text-sm font-semibold flex items-center gap-1 ${selectionMode === "delivery" ? "text-emerald-600" : "text-indigo-600 hover:underline"}`}
+                      onClick={() =>
+                        setSelectionMode(
+                          selectionMode === "delivery" ? null : "delivery",
+                        )
+                      }
+                    >
+                      <MapIcon size={14} />
+                      {selectionMode === "delivery"
+                        ? "Click on map to pick"
+                        : "Select on Map"}
+                    </button>
+                  </div>
+
                   {deliveryLocation && (
                     <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg text-sm font-medium border border-emerald-100">
                       <CheckCircle2 size={16} />
-                      Coordinates Localized: {deliveryLocation.lat.toFixed(
-                        4,
-                      )}, {deliveryLocation.lng.toFixed(4)}
+                      <span className="truncate" title={deliveryLocation.name}>
+                        Selected: {deliveryLocation.name.split(",")[0]}
+                      </span>
                     </div>
                   )}
                 </div>

@@ -286,7 +286,7 @@ const MapComponent = ({
           Object.entries(truckRoutesMap).map(
             ([
               tripId,
-              { routeWaypoints, startLocation, endLocation, color },
+              { routeWaypoints, startLocation, endLocation, stops, color },
             ]) => (
               <React.Fragment key={tripId}>
                 {/* Truck original starting point */}
@@ -322,6 +322,33 @@ const MapComponent = ({
                     <Popup className="font-bold">Truck Route</Popup>
                   </Polyline>
                 )}
+
+                {/* Stop markers along the route */}
+                {stops &&
+                  stops.map((stop, i) => (
+                    <Marker
+                      key={`stop-${tripId}-${i}`}
+                      position={[stop.lat, stop.lng]}
+                      icon={L.divIcon({
+                        className: "",
+                        html: `<div style="
+                        width:22px;height:22px;border-radius:50%;
+                        background:${color};border:2px solid white;
+                        color:white;font-size:10px;font-weight:900;
+                        display:flex;align-items:center;justify-content:center;
+                        box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                      ">${i + 1}</div>`,
+                        iconSize: [22, 22],
+                        iconAnchor: [11, 11],
+                      })}
+                    >
+                      <Popup>
+                        <strong style={{ color }}>Stop {i + 1}</strong>
+                        <br />
+                        {stop.name}
+                      </Popup>
+                    </Marker>
+                  ))}
               </React.Fragment>
             ),
           )}
